@@ -1,0 +1,31 @@
+name: 10TB_Action_NonStop
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+      - name: 安装 Rclone
+        run: sudo curl https://rclone.org/install.sh | sudo bash
+      - name: 启动搬运
+        env:
+          PIKPAK_USER: ${{ secrets.PIKPAK_USER }}
+          PIKPAK_PASS: ${{ secrets.PIKPAK_PASS }}
+          PAN123_USER: ${{ secrets.PAN123_USER }}
+          PAN123_PASS: ${{ secrets.PAN123_PASS }}
+        run: python3 transfer.py
+      - name: 自动保存断点
+        if: always()
+        run: |
+          git config --local user.email "bot@github.com"
+          git config --local user.name "TransferBot"
+          git add state.json || true
+          git commit -m "💾 Sync Progress [skip ci]" || true
+          git push || true
