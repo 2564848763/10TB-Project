@@ -1,71 +1,95 @@
 import os, sys, time, json, hashlib, subprocess, urllib.request, urllib.parse
 from pathlib import Path
 
-# 配置中心
+# ==================== ⚙️ 核心配置 ====================
 CFG = {
     "pikpak_user": os.getenv("PIKPAK_USER"),
     "pikpak_pass": os.getenv("PIKPAK_PASS"),
     "pan123_user": os.getenv("PAN123_USER"),
     "pan123_pass": os.getenv("PAN123_PASS"),
-    "transfers": 10,
-    "buffer_size": "64M",
+    "transfers": 5,           # 建议先调低到 5，稳一点
+    "buffer_size": "32M",
     "checkpoint_file": "state.json",
     "src_base": "pikpak:",
     "dst_base": "123pan:/PikPak_Backup",
-    "folders": [f'/{chr(i)}' for i in range(ord('a'), ord('q')+1)],
+    # 强制加上斜杠，确保路径匹配
+    "folders": [f"/{chr(i)}" for i in range(ord('a'), ord('q')+1)], 
     "rc_addr": "localhost:5572"
 }
 
-# BBR & TCP 网络满血加速
+# 自动加密密码的函数
+def obscure_password(password):
+    if not password: return ""
+    res = subprocess.run(["rclone", "obscure", password], capture_output=True, text=True)
+    return res.stdout.strip()
+
 def optimize_system():
     print("🛠️ 正在注入 BBR 算法与 TCP 窗口优化...")
     cmds = [
         "sudo sysctl -w net.core.default_qdisc=fq",
         "sudo sysctl -w net.ipv4.tcp_congestion_control=bbr",
-        "sudo sysctl -w net.ipv4.tcp_fastopen=3",
-        "sudo sysctl -w net.core.rmem_max=67108864",
-        "sudo sysctl -w net.core.wmem_max=67108864",
-        "sudo sysctl -w net.ipv4.tcp_rmem='4096 87380 67108864'",
-        "sudo sysctl -w net.ipv4.tcp_wmem='4096 65536 67108864'"
+        "sudo sysctl -w net.ipv4.tcp_fastopen=3"
     ]
     for c in cmds: subprocess.run(c, shell=True, capture_output=True)
-    print("✅ 系统网络已进入满血模式")
-
-class State:
-    def __init__(self):
-        self.stats = {"done": 0, "failed": 0}
-        if Path(CFG["checkpoint_file"]).exists():
-            try: self.stats.update(json.load(open(CFG["checkpoint_file"])))
-            except: pass
-    def save(self):
-        with open(CFG["checkpoint_file"], "w") as f: json.dump(self.stats, f)
-
-state = State()
 
 def init_rclone():
-    conf = f"[pikpak]\ntype = pikpak\nuser = {CFG['pikpak_user']}\npass = {CFG['pikpak_pass']}\n\n[123pan]\ntype = webdav\nurl = https://webdav.123pan.cn/webdav\nvendor = other\nuser = {CFG['pan123_user']}\npass = {CFG['pan123_pass']}\n"
+    print("🔐 正在加密配置并启动引擎...")
+    # 关键：PikPak 和 123 的密码都需要加密，否则 Rclone 容易罢工
+    p_pass = obscure_password(CFG['pikpak_pass'])
+    w_pass = obscure_password(CFG['pan123_pass'])
+    
+    conf = f"""
+[pikpak]
+type = pikpak
+user = {CFG['pikpak_user']}
+pass = {p_pass}
+
+[123pan]
+type = webdav
+url = https://webdav.123pan.cn/webdav
+vendor = other
+user = {CFG['pan123_user']}
+pass = {w_pass}
+"""
     Path("rclone.conf").write_text(conf)
-    subprocess.Popen(["rclone", "rcd", "--rc-no-auth", "--rc-addr", CFG["rc_addr"], "--config", "rclone.conf", "--transfers", str(CFG["transfers"]), "--daemon"])
+    subprocess.Popen([
+        "rclone", "rcd", "--rc-no-auth", "--rc-addr", CFG["rc_addr"], 
+        "--config", "rclone.conf", "--daemon"
+    ])
     time.sleep(5)
+    return True
 
 def process_folder(folder):
-    src, dst = f"{CFG['src_base']}{folder}", f"{CFG['dst_base']}{folder}"
-    res = subprocess.run(["rclone", "lsjson", "-R", "--files-only", "--config", "rclone.conf", src], capture_output=True, text=True)
-    files = json.loads(res.stdout) if res.returncode == 0 else []
+    # 确保源路径不带多余的斜杠
+    src = f"{CFG['src_base']}{folder}"
+    dst = f"{CFG['dst_base']}{folder}"
+    print(f"[{time.strftime('%H:%M:%S')}] 🔍 正在深度扫描: {src}")
+    
+    # 运行扫描
+    res = subprocess.run([
+        "rclone", "lsjson", "-R", "--files-only", 
+        "--config", "rclone.conf", src
+    ], capture_output=True, text=True)
+    
+    # 如果报错了，打印出错误原因
+    if res.returncode != 0:
+        print(f"❌ 扫描失败 {folder}: {res.stderr.strip()}")
+        return
+
+    files = json.loads(res.stdout) if res.stdout.strip() else []
+    print(f"✅ 发现 {len(files)} 个文件")
+    
     for f in files:
         orig = f["Path"]
         safe = hashlib.md5(orig.encode()).hexdigest()[:16] + os.path.splitext(orig)[1]
         params = urllib.parse.urlencode({'srcFs': src, 'srcRemote': orig, 'dstFs': dst, 'dstRemote': safe, '_async': 'true'})
         try:
             urllib.request.urlopen(f"http://{CFG['rc_addr']}/operations/copyfile?{params}")
-            state.stats["done"] += 1
-        except: state.stats["failed"] += 1
-        if state.stats["done"] % 20 == 0:
-            print(f"📊 进度：已完成 {state.stats['done']} | 失败 {state.stats['failed']}")
-            state.save()
+        except: pass
 
 if __name__ == "__main__":
     optimize_system()
-    init_rclone()
-    for f in CFG["folders"]: process_folder(f)
-    state.save()
+    if init_rclone():
+        for fld in CFG["folders"]:
+            process_folder(fld)
+    print("🏆 任务结束，请检查 123 云盘")
