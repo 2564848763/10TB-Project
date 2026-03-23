@@ -1,0 +1,33 @@
+name: V1_Simple_Transfer
+
+on:
+  workflow_dispatch: # 手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🚀 开启 BBR 与 TCP 满血优化
+        run: |
+          sudo sysctl -w net.core.default_qdisc=fq
+          sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+          sudo sysctl -w net.ipv4.tcp_fastopen=3
+          sudo sysctl -w net.core.rmem_max=67108864
+          sudo sysctl -w net.core.wmem_max=67108864
+          sudo sysctl -w net.ipv4.tcp_rmem='4096 87380 67108864'
+          sudo sysctl -w net.ipv4.tcp_wmem='4096 65536 67108864'
+          echo "✅ BBR 算法已开启，TCP 接收/发送窗口已拉满到 64MB！"
+
+      - name: 安装 Rclone
+        run: sudo curl https://rclone.org/install.sh | sudo bash
+
+      - name: 执行极简搬运
+        env:
+          PIKPAK_USER: ${{ secrets.PIKPAK_USER }}
+          PIKPAK_PASS: ${{ secrets.PIKPAK_PASS }}
+          PAN123_USER: ${{ secrets.PAN123_USER }}
+          PAN123_PASS: ${{ secrets.PAN123_PASS }}
+        run: python3 transfer.py
