@@ -1,4 +1,4 @@
-name: Stable Cloud Transfer
+name: PikPak WebDAV Fixed Transfer
 
 on:
   workflow_dispatch: 
@@ -23,10 +23,11 @@ jobs:
           rclone config create pikpak webdav url "https://dav.mypikpak.com" vendor other user "${{ secrets.PIKPAK_USER }}" pass "${{ secrets.PIKPAK_PASS }}"
           rclone config create 123pan webdav url "https://webdav.123pan.cn/webdav" vendor other user "${{ secrets.PAN123_USER }}" pass "${{ secrets.PAN123_PASS }}"
 
-      - name: Run Stable Copy
+      - name: Run Fixed Copy
         run: |
-          # 降低了并发数，增加了 tpslimit 限制，防止 PikPak 报错 400
           rclone copy "pikpak:/j" "123pan:/j" -v \
+            --multi-thread-streams 0 \
+            --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
             --transfers 4 \
             --checkers 8 \
             --tpslimit 4 \
@@ -34,6 +35,4 @@ jobs:
             --max-transfer 200G \
             --buffer-size 64M \
             --retries 10 \
-            --low-level-retries 10 \
-            --timeout 15m \
             --ignore-errors
