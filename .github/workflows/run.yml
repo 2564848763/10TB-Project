@@ -1,4 +1,4 @@
-name: PikPak WebDAV Fixed Transfer
+name: Native PikPak + BBR Extreme
 
 on:
   workflow_dispatch: 
@@ -9,30 +9,34 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Inject Network Black Tech
+      - name: Inject Google BBR & Network Black Tech
         run: |
+          # 满血开启 BBR 拥塞控制，并扩大 TCP 收发窗口极限，榨干 GitHub 千兆网络
           sudo sysctl -w net.core.default_qdisc=fq
           sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+          sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 33554432"
+          sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 33554432"
           sudo sh -c 'echo "nameserver 8.8.8.8" > /etc/resolv.conf'
+          sudo sh -c 'echo "nameserver 8.8.4.4" >> /etc/resolv.conf'
 
       - name: Install Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: Generate Config
+      - name: Generate Native Config
         run: |
-          rclone config create pikpak webdav url "https://dav.mypikpak.com" vendor other user "${{ secrets.PIKPAK_USER }}" pass "${{ secrets.PIKPAK_PASS }}"
+          # PikPak 启用原生协议，彻底告别 400 报错
+          rclone config create pikpak pikpak user "${{ secrets.PIKPAK_USER }}" pass "${{ secrets.PIKPAK_PASS }}"
           rclone config create 123pan webdav url "https://webdav.123pan.cn/webdav" vendor other user "${{ secrets.PAN123_USER }}" pass "${{ secrets.PAN123_PASS }}"
 
-      - name: Run Fixed Copy
+      - name: Run Extreme Native Copy
         run: |
           rclone copy "pikpak:/j" "123pan:/j" -v \
-            --multi-thread-streams 0 \
-            --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
-            --transfers 4 \
-            --checkers 8 \
-            --tpslimit 4 \
+            --transfers 8 \
+            --checkers 16 \
             --size-only \
             --max-transfer 200G \
-            --buffer-size 64M \
+            --buffer-size 128M \
             --retries 10 \
+            --low-level-retries 10 \
+            --timeout 15m \
             --ignore-errors
