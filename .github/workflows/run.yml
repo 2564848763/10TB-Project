@@ -28,7 +28,8 @@ jobs:
 
       - name: Run Extreme Copy
         run: |
-          rclone copy pikpak:/ 123pan:/ -v \
+          # 这里的路径已经修改为只同步 j 文件夹
+          rclone copy "pikpak:/j" "123pan:/j" -v \
             --disable-http2 \
             --use-mmap \
             --transfers 32 \
