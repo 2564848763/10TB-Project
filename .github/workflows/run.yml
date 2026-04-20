@@ -1,33 +1,44 @@
-name: V1_Simple_Transfer
+name: Ultimate Cloud Transfer
 
 on:
-  workflow_dispatch: # 手动触发
+  workflow_dispatch: 
+  schedule:
+    - cron: '0 16 * * *'
 
 jobs:
-  build:
+  sync:
     runs-on: ubuntu-latest
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 🚀 开启 BBR 与 TCP 满血优化
+      - name: Inject Network Black Tech
         run: |
           sudo sysctl -w net.core.default_qdisc=fq
           sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
-          sudo sysctl -w net.ipv4.tcp_fastopen=3
-          sudo sysctl -w net.core.rmem_max=67108864
-          sudo sysctl -w net.core.wmem_max=67108864
-          sudo sysctl -w net.ipv4.tcp_rmem='4096 87380 67108864'
-          sudo sysctl -w net.ipv4.tcp_wmem='4096 65536 67108864'
-          echo "✅ BBR 算法已开启，TCP 接收/发送窗口已拉满到 64MB！"
+          sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 33554432"
+          sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 33554432"
+          sudo sh -c 'echo "nameserver 8.8.8.8" > /etc/resolv.conf'
+          sudo sh -c 'echo "nameserver 8.8.4.4" >> /etc/resolv.conf'
 
-      - name: 安装 Rclone
-        run: sudo curl https://rclone.org/install.sh | sudo bash
+      - name: Install Rclone
+        run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 执行极简搬运
-        env:
-          PIKPAK_USER: ${{ secrets.PIKPAK_USER }}
-          PIKPAK_PASS: ${{ secrets.PIKPAK_PASS }}
-          PAN123_USER: ${{ secrets.PAN123_USER }}
-          PAN123_PASS: ${{ secrets.PAN123_PASS }}
-        run: python3 transfer.py
+      - name: Generate Config
+        run: |
+          rclone config create pikpak webdav url "https://dav.mypikpak.com" vendor other user "${{ secrets.PIKPAK_USER }}" pass "${{ secrets.PIKPAK_PASS }}"
+          rclone config create 123pan webdav url "https://webdav.123pan.cn/webdav" vendor other user "${{ secrets.PAN123_USER }}" pass "${{ secrets.PAN123_PASS }}"
+
+      - name: Run Extreme Copy
+        run: |
+          rclone copy pikpak:/ 123pan:/ -v \
+            --disable-http2 \
+            --use-mmap \
+            --transfers 32 \
+            --checkers 64 \
+            --size-only \
+            --max-transfer 200G \
+            --buffer-size 256M \
+            --vfs-read-chunk-size 128M \
+            --vfs-read-chunk-size-limit off \
+            --retries 10 \
+            --low-level-retries 10 \
+            --timeout 10m \
+            --ignore-errors
