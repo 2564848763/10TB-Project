@@ -1,4 +1,4 @@
-name: Ultimate Cloud Transfer
+name: Stable Cloud Transfer
 
 on:
   workflow_dispatch: 
@@ -13,10 +13,7 @@ jobs:
         run: |
           sudo sysctl -w net.core.default_qdisc=fq
           sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
-          sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 33554432"
-          sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 33554432"
           sudo sh -c 'echo "nameserver 8.8.8.8" > /etc/resolv.conf'
-          sudo sh -c 'echo "nameserver 8.8.4.4" >> /etc/resolv.conf'
 
       - name: Install Rclone
         run: curl https://rclone.org/install.sh | sudo bash
@@ -26,17 +23,17 @@ jobs:
           rclone config create pikpak webdav url "https://dav.mypikpak.com" vendor other user "${{ secrets.PIKPAK_USER }}" pass "${{ secrets.PIKPAK_PASS }}"
           rclone config create 123pan webdav url "https://webdav.123pan.cn/webdav" vendor other user "${{ secrets.PAN123_USER }}" pass "${{ secrets.PAN123_PASS }}"
 
-      - name: Run Extreme Copy
+      - name: Run Stable Copy
         run: |
+          # 降低了并发数，增加了 tpslimit 限制，防止 PikPak 报错 400
           rclone copy "pikpak:/j" "123pan:/j" -v \
-            --disable-http2 \
-            --use-mmap \
-            --transfers 32 \
-            --checkers 64 \
+            --transfers 4 \
+            --checkers 8 \
+            --tpslimit 4 \
             --size-only \
             --max-transfer 200G \
-            --buffer-size 256M \
+            --buffer-size 64M \
             --retries 10 \
             --low-level-retries 10 \
-            --timeout 10m \
+            --timeout 15m \
             --ignore-errors
