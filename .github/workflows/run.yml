@@ -28,7 +28,6 @@ jobs:
 
       - name: Run Extreme Copy
         run: |
-          # 这里的路径已经修改为只同步 j 文件夹
           rclone copy "pikpak:/j" "123pan:/j" -v \
             --disable-http2 \
             --use-mmap \
@@ -37,8 +36,6 @@ jobs:
             --size-only \
             --max-transfer 200G \
             --buffer-size 256M \
-            --vfs-read-chunk-size 128M \
-            --vfs-read-chunk-size-limit off \
             --retries 10 \
             --low-level-retries 10 \
             --timeout 10m \
