@@ -16,16 +16,16 @@ jobs:
       - name: 安装 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 载入配置文件
+      - name: 载入配置文件 (Base64 解包)
         env:
-          RCLONE_CONF_DATA: ${{ secrets.RCLONE_CONF }}
+          RCLONE_CONF_BASE64: ${{ secrets.RCLONE_CONF }}
         run: |
           mkdir -p ~/.config/rclone
-          echo "$RCLONE_CONF_DATA" > ~/.config/rclone/rclone.conf
+          # 将打包后的乱码还原为真实的配置文件
+          echo "$RCLONE_CONF_BASE64" | base64 -d > ~/.config/rclone/rclone.conf
 
       - name: 执行全量迁移
         run: |
-          # 注意这里的路径：gdrive:/ 表示根目录，搬运所有文件
           rclone copy gdrive:/ 123pan:/ \
             -v --stats=15s \
             --transfers=8 \
