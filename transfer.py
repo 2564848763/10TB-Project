@@ -18,18 +18,18 @@ jobs:
 
       - name: 载入配置文件
         env:
-          RCLONE_CONF_DATA: ${{ secrets.RCLONE_CONF }}
+          CONF: ${{ secrets.RCLONE_CONF }}
         run: |
           mkdir -p ~/.config/rclone
-          # 直接存入，不进行解密
-          echo "$RCLONE_CONF_DATA" > ~/.config/rclone/rclone.conf
+          # 使用 printf 避免 echo 可能带来的换行转义问题
+          printf "%s" "$CONF" > ~/.config/rclone/rclone.conf
 
       - name: 执行全量迁移
         run: |
+          # 加上 --drive-acknowledge-abuse 绕过谷歌对大文件的安全扫描警告
           rclone copy gdrive:/ 123pan:/ \
             -v --stats=15s \
             --transfers=4 \
             --checkers=8 \
-            --buffer-size=64M \
-            --drive-chunk-size=64M \
+            --drive-acknowledge-abuse \
             --ignore-errors
