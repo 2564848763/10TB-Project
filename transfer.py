@@ -16,17 +16,16 @@ jobs:
       - name: 安装 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 载入配置文件
+      - name: 载入配置文件 (Python 强稳版)
         env:
           CONF: ${{ secrets.RCLONE_CONF }}
         run: |
           mkdir -p ~/.config/rclone
-          # 使用 printf 避免 echo 可能带来的换行转义问题
-          printf "%s" "$CONF" > ~/.config/rclone/rclone.conf
+          # 使用 Python 写入，确保特殊字符不被转义
+          python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
 
       - name: 执行全量迁移
         run: |
-          # 加上 --drive-acknowledge-abuse 绕过谷歌对大文件的安全扫描警告
           rclone copy gdrive:/ 123pan:/ \
             -v --stats=15s \
             --transfers=4 \
