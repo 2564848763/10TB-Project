@@ -1,0 +1,20 @@
+name: GDrive to 123Pan SA Transfer
+on:
+  workflow_dispatch:
+jobs:
+  transfer-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+        
+      - name: Load Config
+        env:
+          CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          mkdir -p ~/.config/rclone
+          python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
+          
+      - name: Run Transfer
+        run: rclone copy gdrive: 123pan:/abc -v --stats=15s --transfers=4 --checkers=8 --ignore-errors --drive-acknowledge-abuse
+
