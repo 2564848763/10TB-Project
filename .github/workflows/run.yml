@@ -1,42 +1,40 @@
-name: Native PikPak + BBR Extreme
+name: GDrive to 123Pan Full Transfer
 
 on:
-  workflow_dispatch: 
-  schedule:
-    - cron: '0 16 * * *'
+  workflow_dispatch: # 手动触发
 
 jobs:
-  sync:
+  transfer-data:
     runs-on: ubuntu-latest
+    # 设置较长的超时上限（GitHub 最大允许 360 分钟）
+    timeout-minutes: 350 
+
     steps:
-      - name: Inject Google BBR & Network Black Tech
+      - name: 开启 BBR 网络优化
         run: |
-          # 满血开启 BBR 拥塞控制，并扩大 TCP 收发窗口极限，榨干 GitHub 千兆网络
           sudo sysctl -w net.core.default_qdisc=fq
           sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
-          sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 33554432"
-          sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 33554432"
-          sudo sh -c 'echo "nameserver 8.8.8.8" > /etc/resolv.conf'
-          sudo sh -c 'echo "nameserver 8.8.4.4" >> /etc/resolv.conf'
 
-      - name: Install Rclone
+      - name: 安装 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: Generate Native Config
+      - name: 载入配置文件
+        env:
+          RCLONE_CONF_DATA: ${{ secrets.RCLONE_CONF }}
         run: |
-          # PikPak 启用原生协议，彻底告别 400 报错
-          rclone config create pikpak pikpak user "${{ secrets.PIKPAK_USER }}" pass "${{ secrets.PIKPAK_PASS }}"
-          rclone config create 123pan webdav url "https://webdav.123pan.cn/webdav" vendor other user "${{ secrets.PAN123_USER }}" pass "${{ secrets.PAN123_PASS }}"
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONF_DATA" > ~/.config/rclone/rclone.conf
 
-      - name: Run Extreme Native Copy
+      - name: 执行全量迁移
         run: |
-          rclone copy "pikpak:/j" "123pan:/j" -v \
-            --transfers 8 \
-            --checkers 16 \
-            --size-only \
-            --max-transfer 200G \
-            --buffer-size 128M \
-            --retries 10 \
-            --low-level-retries 10 \
-            --timeout 15m \
+          # 核心命令：将 gdrive 根目录内容复制到 123pan 根目录
+          # --transfers 8: 增加并发数提高速度
+          # --buffer-size 128M: 增加内存缓冲区
+          # --drive-chunk-size 128M: 优化谷歌云盘的大文件读取
+          rclone copy gdrive:/ 123pan:/ \
+            -v --stats=15s \
+            --transfers=8 \
+            --checkers=16 \
+            --buffer-size=128M \
+            --drive-chunk-size=128M \
             --ignore-errors
