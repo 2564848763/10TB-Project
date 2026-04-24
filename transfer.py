@@ -1,4 +1,4 @@
-name: GDrive to 123Pan Full Transfer
+name: GDrive to 123Pan SA Transfer
 
 on:
   workflow_dispatch:
@@ -21,12 +21,13 @@ jobs:
           CONF: ${{ secrets.RCLONE_CONF }}
         run: |
           mkdir -p ~/.config/rclone
-          # 使用 Python 写入，确保特殊字符不被转义
+          # 使用 Python 写入，确保 JSON 的复杂引号不被 Bash 转义破坏
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
 
       - name: 执行全量迁移
         run: |
-          rclone copy gdrive:/ 123pan:/ \
+          # gdrive: 后面不需要斜杠，它会自动访问你分享给机器人的文件夹
+          rclone copy gdrive: 123pan:/abc \
             -v --stats=15s \
             --transfers=4 \
             --checkers=8 \
