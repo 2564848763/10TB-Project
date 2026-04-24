@@ -16,13 +16,21 @@ jobs:
       - name: 安装 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 载入配置文件
+      - name: 准备配置和独立密钥文件
         env:
           CONF: ${{ secrets.RCLONE_CONF }}
+          SA_KEY: ${{ secrets.SA_JSON }}
         run: |
           mkdir -p ~/.config/rclone
+          # 1. 写入基础配置
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
+          # 2. 将 JSON 密钥单独保存为一个物理文件，彻底避免格式解析错误
+          python3 -c "import os; open('/tmp/sa.json', 'w').write(os.environ['SA_KEY'])"
 
       - name: 执行全量迁移
         run: |
-          rclone copy gdrive: 123pan:/abc -v --stats=15s --transfers=4 --checkers=8 --ignore-errors --drive-acknowledge-abuse
+          # 强制 Rclone 读取独立的密钥文件
+          rclone copy gdrive: 123pan:/abc \
+            --drive-service-account-file=/tmp/sa.json \
+            -v --stats=15s --transfers=4 --checkers=8 \
+            --ignore-errors --drive-acknowledge-abuse
