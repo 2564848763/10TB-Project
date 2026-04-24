@@ -16,7 +16,7 @@ jobs:
       - name: 安装 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 载入配置文件 (Python 强稳版)
+      - name: 载入配置文件
         env:
           CONF: ${{ secrets.RCLONE_CONF }}
         run: |
@@ -25,7 +25,6 @@ jobs:
 
       - name: 执行全量迁移
         run: |
-          # 注意：gdrive: 后面不要加斜杠，它会自动识别分享给机器人的根目录
           rclone copy gdrive: 123pan:/abc \
             -v --stats=15s \
             --transfers=4 \
