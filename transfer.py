@@ -21,12 +21,11 @@ jobs:
           CONF: ${{ secrets.RCLONE_CONF }}
         run: |
           mkdir -p ~/.config/rclone
-          # 使用 Python 写入，确保 JSON 的复杂引号不被 Bash 转义破坏
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
 
       - name: 执行全量迁移
         run: |
-          # gdrive: 后面不需要斜杠，它会自动访问你分享给机器人的文件夹
+          # 注意：gdrive: 后面不要加斜杠，它会自动识别分享给机器人的根目录
           rclone copy gdrive: 123pan:/abc \
             -v --stats=15s \
             --transfers=4 \
