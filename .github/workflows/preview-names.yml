@@ -1,4 +1,4 @@
-name: 预览异常文件名 (绝不修改)
+name: 预览异常文件名 (深度递归版)
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ jobs:
       - name: 安装谷歌官方工具
         run: pip install google-api-python-client google-auth httplib2
 
-      - name: 执行扫描对账单
+      - name: 执行深度扫描对账单
         env:
           SA_KEY: ${{ secrets.SA_JSON }}
         run: |
@@ -24,7 +24,6 @@ jobs:
           from google.oauth2 import service_account
           from googleapiclient.discovery import build
 
-          # 安全清洗规则：去首尾空格/点，非法符号转全角
           def clean_name(name):
               new_name = name.strip().strip('.')
               illegal_chars = {'<': '《', '>': '》', ':': '：', '"': '“', '/': '-', '\\': '-', '|': '丨', '?': '？', '*': '＊'}
@@ -36,29 +35,54 @@ jobs:
           creds = service_account.Credentials.from_service_account_info(sa_info)
           service = build('drive', 'v3', credentials=creds)
 
-          print("=== 正在扫描 10TB 云盘寻找非法文件名，请稍候... ===")
-          page_token = None
+          print("=== 🚀 开始深度扫描 10TB 云盘（包含所有深层子文件夹） ===")
+          
+          # 1. 获取所有分享给机器人的顶层大门
+          shared_items = service.files().list(q="sharedWithMe = true and trashed = false", fields="files(id, name, mimeType)").execute().get('files', [])
+          
           count = 0
-          while True:
-              results = service.files().list(
-                  q="sharedWithMe = true",
-                  fields="nextPageToken, files(id, name)",
-                  pageToken=page_token,
-                  pageSize=1000
-              ).execute()
-              
-              for file in results.get('files', []):
-                  old_name = file['name']
-                  new_name = clean_name(old_name)
-                  if old_name != new_name:
-                      print(f"【发现刺头】\n原名：{old_name}\n准备改成：{new_name}\n-------------------------")
-                      count += 1
-                      
-              page_token = results.get('nextPageToken')
-              if not page_token:
-                  break
+          
+          # 2. 定义钻头函数：专门往深处找
+          def drill_down(folder_id, current_path):
+              global count
+              page_token = None
+              while True:
+                  res = service.files().list(
+                      q=f"'{folder_id}' in parents and trashed = false",
+                      fields="nextPageToken, files(id, name, mimeType)",
+                      pageToken=page_token,
+                      pageSize=1000
+                  ).execute()
                   
-          print(f"扫描彻底结束！共发现 {count} 个需要清洗的文件。")
-          print("如果上面的修改看起来很规矩没问题，请告诉 AI，获取正式修改代码！")
+                  for child in res.get('files', []):
+                      old_name = child['name']
+                      new_name = clean_name(old_name)
+                      
+                      # 抓到深处隐藏的刺头
+                      if old_name != new_name:
+                          print(f"【发现深层刺头】路径：{current_path}/{old_name}\n -> 准备改成：{new_name}\n-------------------------")
+                          count += 1
+                          
+                      # 如果遇到文件夹，继续往更深层钻
+                      if child['mimeType'] == 'application/vnd.google-apps.folder':
+                          drill_down(child['id'], f"{current_path}/{old_name}")
+                          
+                  page_token = res.get('nextPageToken')
+                  if not page_token:
+                      break
+
+          # 3. 开始执行
+          for item in shared_items:
+              old_root = item['name']
+              if clean_name(old_root) != old_root:
+                  print(f"【发现大门刺头】原名：{old_root} -> 准备改成：{clean_name(old_root)}\n-------------------------")
+                  count += 1
+                  
+              if item['mimeType'] == 'application/vnd.google-apps.folder':
+                  print(f"正在钻入主文件夹：{item['name']} ... (因为有上万个文件，可能需要跑几分钟，请耐心等待)")
+                  drill_down(item['id'], item['name'])
+
+          print(f"深度扫描彻底结束！共在各个角落揪出了 {count} 个需要清洗的文件。")
+          print("请核对上面的列表，看看改的名字是否规矩！")
           EOF
           python check.py
