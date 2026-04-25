@@ -1,10 +1,10 @@
-name: 预览异常文件名 (深度递归版)
+name: 正式修改异常文件名 (执行清理)
 
 on:
   workflow_dispatch:
 
 jobs:
-  preview-names:
+  rename-files:
     runs-on: ubuntu-latest
     steps:
       - name: 配置 Python 环境
@@ -15,11 +15,11 @@ jobs:
       - name: 安装谷歌官方工具
         run: pip install google-api-python-client google-auth httplib2
 
-      - name: 执行深度扫描对账单
+      - name: 正式执行深度重命名
         env:
           SA_KEY: ${{ secrets.SA_JSON }}
         run: |
-          cat << 'EOF' > check.py
+          cat << 'EOF' > rename.py
           import os, json
           from google.oauth2 import service_account
           from googleapiclient.discovery import build
@@ -35,16 +35,13 @@ jobs:
           creds = service_account.Credentials.from_service_account_info(sa_info)
           service = build('drive', 'v3', credentials=creds)
 
-          print("=== 🚀 开始深度扫描 10TB 云盘（包含所有深层子文件夹） ===")
+          print("=== 🚀 开始正式清洗 10TB 云盘非法文件名 ===")
           
-          # 1. 获取所有分享给机器人的顶层大门
           shared_items = service.files().list(q="sharedWithMe = true and trashed = false", fields="files(id, name, mimeType)").execute().get('files', [])
+          renamed_count = 0
           
-          count = 0
-          
-          # 2. 定义钻头函数：专门往深处找
-          def drill_down(folder_id, current_path):
-              global count
+          def drill_down(folder_id):
+              global renamed_count
               page_token = None
               while True:
                   res = service.files().list(
@@ -58,31 +55,35 @@ jobs:
                       old_name = child['name']
                       new_name = clean_name(old_name)
                       
-                      # 抓到深处隐藏的刺头
                       if old_name != new_name:
-                          print(f"【发现深层刺头】路径：{current_path}/{old_name}\n -> 准备改成：{new_name}\n-------------------------")
-                          count += 1
-                          
-                      # 如果遇到文件夹，继续往更深层钻
+                          try:
+                              service.files().update(fileId=child['id'], body={'name': new_name}).execute()
+                              print(f"✅ 成功修改：[{old_name}] -> [{new_name}]")
+                              renamed_count += 1
+                          except Exception as e:
+                              print(f"❌ 修改失败：[{old_name}]，报错：{e}")
+                              
                       if child['mimeType'] == 'application/vnd.google-apps.folder':
-                          drill_down(child['id'], f"{current_path}/{old_name}")
+                          drill_down(child['id'])
                           
                   page_token = res.get('nextPageToken')
                   if not page_token:
                       break
 
-          # 3. 开始执行
           for item in shared_items:
               old_root = item['name']
-              if clean_name(old_root) != old_root:
-                  print(f"【发现大门刺头】原名：{old_root} -> 准备改成：{clean_name(old_root)}\n-------------------------")
-                  count += 1
+              new_root = clean_name(old_root)
+              if old_root != new_root:
+                  try:
+                      service.files().update(fileId=item['id'], body={'name': new_root}).execute()
+                      print(f"✅ 成功修改：[{old_root}] -> [{new_root}]")
+                      renamed_count += 1
+                  except Exception as e:
+                      print(f"❌ 修改失败：[{old_root}]，报错：{e}")
                   
               if item['mimeType'] == 'application/vnd.google-apps.folder':
-                  print(f"正在钻入主文件夹：{item['name']} ... (因为有上万个文件，可能需要跑几分钟，请耐心等待)")
-                  drill_down(item['id'], item['name'])
+                  drill_down(item['id'])
 
-          print(f"深度扫描彻底结束！共在各个角落揪出了 {count} 个需要清洗的文件。")
-          print("请核对上面的列表，看看改的名字是否规矩！")
+          print(f"=== 清洗彻底结束！共成功修改了 {renamed_count} 个文件/文件夹。 ===")
           EOF
-          python check.py
+          python rename.py
