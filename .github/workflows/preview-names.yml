@@ -1,0 +1,64 @@
+name: 预览异常文件名 (绝不修改)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  preview-names:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 配置 Python 环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 安装谷歌官方工具
+        run: pip install google-api-python-client google-auth httplib2
+
+      - name: 执行扫描对账单
+        env:
+          SA_KEY: ${{ secrets.SA_JSON }}
+        run: |
+          cat << 'EOF' > check.py
+          import os, json
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+
+          # 安全清洗规则：去首尾空格/点，非法符号转全角
+          def clean_name(name):
+              new_name = name.strip().strip('.')
+              illegal_chars = {'<': '《', '>': '》', ':': '：', '"': '“', '/': '-', '\\': '-', '|': '丨', '?': '？', '*': '＊'}
+              for char, replacement in illegal_chars.items():
+                  new_name = new_name.replace(char, replacement)
+              return new_name
+
+          sa_info = json.loads(os.environ['SA_KEY'])
+          creds = service_account.Credentials.from_service_account_info(sa_info)
+          service = build('drive', 'v3', credentials=creds)
+
+          print("=== 正在扫描 10TB 云盘寻找非法文件名，请稍候... ===")
+          page_token = None
+          count = 0
+          while True:
+              results = service.files().list(
+                  q="sharedWithMe = true",
+                  fields="nextPageToken, files(id, name)",
+                  pageToken=page_token,
+                  pageSize=1000
+              ).execute()
+              
+              for file in results.get('files', []):
+                  old_name = file['name']
+                  new_name = clean_name(old_name)
+                  if old_name != new_name:
+                      print(f"【发现刺头】\n原名：{old_name}\n准备改成：{new_name}\n-------------------------")
+                      count += 1
+                      
+              page_token = results.get('nextPageToken')
+              if not page_token:
+                  break
+                  
+          print(f"扫描彻底结束！共发现 {count} 个需要清洗的文件。")
+          print("如果上面的修改看起来很规矩没问题，请告诉 AI，获取正式修改代码！")
+          EOF
+          python check.py
