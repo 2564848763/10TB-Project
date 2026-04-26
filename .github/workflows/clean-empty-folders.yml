@@ -7,30 +7,27 @@ jobs:
   clean-empty-dirs:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. 极速安装 Rclone 核心组件
+      - name: 1. 安装 Rclone 核心组件
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 2. 无损挂载你的 123云盘配置
+      - name: 2. 挂载 123云盘配置文件
         env:
-          # 精准调用你保存在 Secrets 里的 rclone 配置文件
-          CONF: ${{ secrets.RCLONE_CONF }}
+          # 根据你的截图，这里精准匹配 RCLONE_CONFIG
+          CONF: ${{ secrets.RCLONE_CONFIG }}
         run: |
           mkdir -p ~/.config/rclone
-          # 使用 Python 安全写入，避免任何特殊符号导致的格式错乱
+          # 使用 Python 确保写入格式绝对不乱码
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
+          echo "=== 🔑 配置加载成功！你当前的网盘名字列表如下： ==="
+          rclone listremotes
 
-      - name: 3. 执行多线程极速空壳清理
+      - name: 3. 执行空文件夹清理
         run: |
-          echo "=== 🚀 开启全盘雷达扫描，锁定所有空文件夹 ==="
+          echo "=== 🚀 正在清理 123云盘 里的空壳文件夹... ==="
           
-          # 核心极致优化命令解析：
-          # rmdirs: 只杀空文件夹，遇到有文件的绝对跳过
-          # 123pan:/视频: 精准锁定你的总文件夹路径
-          # --leave-root: 绝对保护最外层的“视频”总文件夹不被误删
-          # --checkers=32: 开启 32 个并发线程同时扫描，把查找速度压榨到极致
-          # -v: 实时打印出到底删了哪些空壳，让你查账
+          # 注意：如果上面的列表显示的不是 [123pan:] 而是别的名字，
+          # 你需要把下面这一行里的 123pan 换成那个名字。
           
           rclone rmdirs 123pan:/视频 --leave-root --checkers=32 -v
           
-          echo "=== 🧹 垃圾清运完毕，123云盘现已完美无瑕！ ==="
-
+          echo "=== 🧹 清理完毕！ ==="
