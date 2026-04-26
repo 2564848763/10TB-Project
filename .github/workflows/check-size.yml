@@ -1,0 +1,28 @@
+name: 双端数据大小核对报告
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. 安装 Rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      - name: 2. 载入配置
+        env:
+          CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          mkdir -p ~/.config/rclone
+          python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
+
+      - name: 3. 生成数据报告
+        run: |
+          echo "=== 🔴 Google Drive 端统计 ==="
+          # 注意：根据你之前的搬运代码，你的 Google Drive 遥控名应该是 gdrive
+          rclone size gdrive:abc || echo "gdrive:abc 路径可能有误，请检查"
+
+          echo -e "\n=== 🔵 123云盘端统计 ==="
+          rclone size 123pan:/abc
+
