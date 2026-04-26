@@ -17,13 +17,16 @@ jobs:
           mkdir -p ~/.config/rclone
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
 
-      - name: 3. 执行全盘清理
+      - name: 3. 照妖镜：查看网盘根目录
         run: |
-          echo "=== 🚀 正在开启全盘雷达，扫描并清理 123云盘 所有的空文件夹 ==="
+          echo "=== 🔍 Rclone 已经进门，它目前看到了以下文件夹： ==="
+          rclone lsd 123pan:
+
+      - name: 4. 执行全盘深度清理
+        run: |
+          echo "=== 🚀 开始全盘扫描并清理（已修正路径） ==="
           
-          # 123pan:/ 代表直接从网盘最外层大门开始往下扫
-          # --checkers=32 开启32个线程极速扫描
+          # 注意：这次是 123pan: （冒号后面没有任何斜杠，代表真正的全盘大扫除）
+          rclone rmdirs 123pan: --checkers=32 -v
           
-          rclone rmdirs 123pan:/ --checkers=32 -v
-          
-          echo "=== 🧹 垃圾清运完毕，整个网盘现已完美无瑕！ ==="
+          echo "=== 🧹 清理彻底完毕！ ==="
