@@ -12,22 +12,21 @@ jobs:
 
       - name: 2. 挂载 123云盘配置文件
         env:
-          # 根据你的截图，这里精准匹配 RCLONE_CONFIG
           CONF: ${{ secrets.RCLONE_CONFIG }}
         run: |
           mkdir -p ~/.config/rclone
-          # 使用 Python 确保写入格式绝对不乱码
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
-          echo "=== 🔑 配置加载成功！你当前的网盘名字列表如下： ==="
-          rclone listremotes
+          echo "=== 🔑 账号配置加载成功！ ==="
 
-      - name: 3. 执行空文件夹清理
+      - name: 3. 执行空文件夹深度清理
         run: |
-          echo "=== 🚀 正在清理 123云盘 里的空壳文件夹... ==="
+          echo "=== 🚀 正在钻入 abc 文件夹执行深度清理... ==="
           
-          # 注意：如果上面的列表显示的不是 [123pan:] 而是别的名字，
-          # 你需要把下面这一行里的 123pan 换成那个名字。
+          # rmdirs：只删空文件夹
+          # 123pan:/abc：精准锁定大门
+          # --leave-root：保护 abc 这个最外层的总文件夹不被删掉
+          # --checkers=32：开 32 个扫地机器人同时往下钻探
           
-          rclone rmdirs 123pan:/视频 --leave-root --checkers=32 -v
+          rclone rmdirs 123pan:/abc --leave-root --checkers=32 -v
           
-          echo "=== 🧹 清理完毕！ ==="
+          echo "=== 🧹 垃圾清运完毕，空壳已全部摧毁！ ==="
