@@ -1,4 +1,4 @@
-name: 最终版清理abc空文件夹
+name: 终极清理abc空文件夹 (终极无敌版)
 
 on:
   workflow_dispatch:
@@ -17,40 +17,43 @@ jobs:
           mkdir -p ~/.config/rclone
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
 
-      - name: 3. 执行原生底层的纯净版清理
+      - name: 3. 执行纯净爆破指令
         run: |
-          echo "=== 🚀 开始扫描 abc 文件夹 ==="
+          echo "=== 🚀 开始扫描 123pan:/abc ==="
           
-          # 核心修正1：获取所有目录，并切掉导致报错的尾部斜杠
-          # 核心修正2：计算文件夹深度并倒序排列（先处理最深层的，再处理外层的）
-          rclone lsf "123pan:abc" -R --dirs-only | sed 's#/$##' | awk -F'/' '{print NF, $0}' | sort -nr | cut -d' ' -f2- > dirs.txt
+          # 核心修正：必须加 /！获取所有子目录名单
+          rclone lsf "123pan:/abc" -R --dirs-only > dirs_raw.txt
+          
+          # 异常拦截：如果连文件都没生成，直接停止
+          if [ ! -s dirs_raw.txt ]; then
+              echo "❌ 未找到任何目录，请检查 123云盘中是否真的有 abc 文件夹！"
+              exit 0
+          fi
+          
+          # 按名字长度倒序排列（名字越长，通常藏得越深，保证先删最里面的）
+          awk '{ print length($0), $0 }' dirs_raw.txt | sort -n -r | cut -d ' ' -f2- > dirs.txt
           
           total=$(wc -l < dirs.txt)
-          echo "📡 共找到 $total 个子文件夹，开始逐一排查..."
+          echo "📡 共找到 $total 个子文件夹，开始排查..."
           
           count=0
-          # 核心修正3：使用原生 Bash 循环，彻底告别 Python 的语法报错
           while IFS= read -r dir; do
-              # 跳过空行
-              if [ -z "$dir" ]; then continue; fi
-              
-              # 拿手电筒检查文件夹内部是否有内容
-              contents=$(rclone lsf "123pan:abc/$dir")
+              # 拿手电筒照一下，看里面有没有内容
+              contents=$(rclone lsf "123pan:/abc/$dir")
               
               if [ -z "$contents" ]; then
-                  echo "🎯 发现纯空文件夹: [$dir]"
+                  echo "🎯 锁定纯白空壳: [$dir]"
                   
-                  # 动用强制删除命令抹除
-                  rclone purge "123pan:abc/$dir"
+                  # 动用强制爆破命令
+                  rclone purge "123pan:/abc/$dir"
                   
-                  # 检查执行结果
                   if [ $? -eq 0 ]; then
-                      echo "   ✅ 删除成功"
+                      echo "   ✅ 爆破成功"
                       count=$((count+1))
                   else
-                      echo "   ⚠️ 删除失败，跳过"
+                      echo "   ⚠️ 爆破失败"
                   fi
               fi
           done < dirs.txt
           
-          echo "=== 🧹 任务彻底结束，共成功删除了 $count 个空文件夹 ==="
+          echo "=== 🧹 任务彻底结束，共成功爆破了 $count 个空文件夹 ==="
