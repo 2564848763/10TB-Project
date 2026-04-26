@@ -1,92 +1,56 @@
-name: 删除123网盘空文件夹(修正版)
+name: 最终版清理abc空文件夹
 
 on:
   workflow_dispatch:
 
 jobs:
-  clean:
+  clean-empty-dirs:
     runs-on: ubuntu-latest
     steps:
-      - name: 设置 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: 1. 安装 Rclone
+        run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 运行清理脚本
+      - name: 2. 挂载配置
         env:
-          PAN123_USER: ${{ secrets.PAN123_USER }}
-          PAN123_PASS: ${{ secrets.PAN123_PASS }}
+          CONF: ${{ secrets.RCLONE_CONFIG }}
         run: |
-          pip install webdavclient3
-          python -c "
-          import os
-          from webdav3.client import Client
+          mkdir -p ~/.config/rclone
+          python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
 
-          client = Client({
-              'webdav_hostname': 'https://webdav.123pan.cn',
-              'webdav_login': os.environ['PAN123_USER'],
-              'webdav_password': os.environ['PAN123_PASS']
-          })
-
-          ROOT = '/webdav'  # 你的123网盘WebDAV根路径
-          dirs = []
-          parent_of = {}
-          stats = {'deleted': 0, 'scanned': 0, 'errors': []}
-
-          def scan(path):
-              try:
-                  items = client.list(path, get_info=True)
-              except Exception as e:
-                  stats['errors'].append(f'扫描失败 {path}: {e}')
-                  return
-              for item in items:
-                  if item['path'].rstrip('/') == path.rstrip('/'):
-                      continue
-                  if item['isdir']:
-                      child = item['path']
-                      parent_of[child] = path
-                      dirs.append(child)
-                      stats['scanned'] += 1
-                      scan(child)
-
-          print(f'🌀 开始扫描根目录: {ROOT}')
-          scan(ROOT)
-          print(f'📂 共扫描到 {stats[\"scanned\"]} 个文件夹')
-          for err in stats['errors']:
-              print(f'   ⚠️ {err}')
-
-          # 按深度从深到浅排序
-          dirs.sort(key=lambda p: p.count('/'), reverse=True)
-
-          def is_empty(path):
-              try:
-                  items = client.list(path)
-                  filenames = [i for i in items if i.strip() not in ('', '.', '..')]
-                  return len(filenames) == 0
-              except Exception as e:
-                  stats['errors'].append(f'检查空目录失败 {path}: {e}')
-                  return False
-
-          def try_delete(path):
-              if is_empty(path):
-                  try:
-                      client.rmdir(path)
-                      print(f'✅ 已删除空文件夹: {path}')
-                      stats['deleted'] += 1
-                      # 向上回溯，父文件夹可能也变空
-                      parent = parent_of.get(path)
-                      if parent and parent != ROOT:
-                          try_delete(parent)
-                  except Exception as e:
-                      stats['errors'].append(f'删除失败 {path}: {e}')
-
-          for d in dirs:
-              try_delete(d)
-
-          print(f'🎯 共删除空文件夹: {stats[\"deleted\"]}')
-          if stats['errors']:
-              print('⚠️ 运行中出现以下错误:')
-              for e in stats['errors']:
-                  print(f'   - {e}')
-          print('🎉 清理流程结束')
-          "
+      - name: 3. 执行原生底层的纯净版清理
+        run: |
+          echo "=== 🚀 开始扫描 abc 文件夹 ==="
+          
+          # 核心修正1：获取所有目录，并切掉导致报错的尾部斜杠
+          # 核心修正2：计算文件夹深度并倒序排列（先处理最深层的，再处理外层的）
+          rclone lsf "123pan:abc" -R --dirs-only | sed 's#/$##' | awk -F'/' '{print NF, $0}' | sort -nr | cut -d' ' -f2- > dirs.txt
+          
+          total=$(wc -l < dirs.txt)
+          echo "📡 共找到 $total 个子文件夹，开始逐一排查..."
+          
+          count=0
+          # 核心修正3：使用原生 Bash 循环，彻底告别 Python 的语法报错
+          while IFS= read -r dir; do
+              # 跳过空行
+              if [ -z "$dir" ]; then continue; fi
+              
+              # 拿手电筒检查文件夹内部是否有内容
+              contents=$(rclone lsf "123pan:abc/$dir")
+              
+              if [ -z "$contents" ]; then
+                  echo "🎯 发现纯空文件夹: [$dir]"
+                  
+                  # 动用强制删除命令抹除
+                  rclone purge "123pan:abc/$dir"
+                  
+                  # 检查执行结果
+                  if [ $? -eq 0 ]; then
+                      echo "   ✅ 删除成功"
+                      count=$((count+1))
+                  else
+                      echo "   ⚠️ 删除失败，跳过"
+                  fi
+              fi
+          done < dirs.txt
+          
+          echo "=== 🧹 任务彻底结束，共成功删除了 $count 个空文件夹 ==="
