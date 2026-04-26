@@ -6,32 +6,46 @@ on:
 jobs:
   transfer-data:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    # 设置较长的超时时间，确保大批量迁移不中断
+    timeout-minutes: 2880 
+
     steps:
-      - name: 开启 BBR 优化
+      - name: 1. 开启 BBR 优化传输速度
         run: |
           sudo sysctl -w net.core.default_qdisc=fq
           sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
 
-      - name: 安装 Rclone
+      - name: 2. 安装最新版 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 准备配置和独立密钥文件
+      - name: 3. 准备配置文件和 SA 密钥
         env:
           CONF: ${{ secrets.RCLONE_CONF }}
           SA_KEY: ${{ secrets.SA_JSON }}
         run: |
           mkdir -p ~/.config/rclone
-          # 1. 写入 123云盘 和 gdrive 基础配置
+          # 写入 123云盘 和 gdrive 的基础配置
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
-          # 2. 写入谷歌服务账号 JSON 独立密钥
+          # 写入谷歌 SA 独立密钥文件
           python3 -c "import os; open('/tmp/sa.json', 'w').write(os.environ['SA_KEY'])"
 
-      - name: 执行全量迁移
+      - name: 4. 执行全量迁移（满血优化版）
         run: |
-          # --drive-shared-with-me 负责去“与我共享”里找你分享给机器人的文件夹
-          rclone copy gdrive: 123pan:/abc \
+          # 核心参数说明：
+          # --drive-acknowledge-abuse: 强行抢救 Google 封锁的 40GB“违规”文件
+          # --fast-list: 针对 14.5 万个文件极速建档，防止扫描卡死
+          # --tpslimit 10: 降低请求频率，防止 Google API 频繁报 403 错误
+          # --buffer-size 64M: 增大内存缓冲，减少断流
+          
+          rclone copy gdrive: 123pan:abc \
             --drive-shared-with-me \
             --drive-service-account-file=/tmp/sa.json \
-            -v --stats=15s --transfers=4 --checkers=8 \
-            --ignore-errors --drive-acknowledge-abuse
+            --drive-acknowledge-abuse \
+            --fast-list \
+            --tpslimit 10 \
+            --buffer-size 64M \
+            --transfers=4 \
+            --checkers=16 \
+            --ignore-errors \
+            --low-level-retries 10 \
+            -v --stats=15s
