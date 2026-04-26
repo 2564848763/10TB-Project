@@ -1,0 +1,36 @@
+name: 极致清理123云盘空文件夹
+
+on:
+  workflow_dispatch:
+
+jobs:
+  clean-empty-dirs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. 极速安装 Rclone 核心组件
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      - name: 2. 无损挂载你的 123云盘配置
+        env:
+          # 精准调用你保存在 Secrets 里的 rclone 配置文件
+          CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          mkdir -p ~/.config/rclone
+          # 使用 Python 安全写入，避免任何特殊符号导致的格式错乱
+          python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
+
+      - name: 3. 执行多线程极速空壳清理
+        run: |
+          echo "=== 🚀 开启全盘雷达扫描，锁定所有空文件夹 ==="
+          
+          # 核心极致优化命令解析：
+          # rmdirs: 只杀空文件夹，遇到有文件的绝对跳过
+          # 123pan:/视频: 精准锁定你的总文件夹路径
+          # --leave-root: 绝对保护最外层的“视频”总文件夹不被误删
+          # --checkers=32: 开启 32 个并发线程同时扫描，把查找速度压榨到极致
+          # -v: 实时打印出到底删了哪些空壳，让你查账
+          
+          rclone rmdirs 123pan:/视频 --leave-root --checkers=32 -v
+          
+          echo "=== 🧹 垃圾清运完毕，123云盘现已完美无瑕！ ==="
+
