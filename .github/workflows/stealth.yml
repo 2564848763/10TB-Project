@@ -1,0 +1,122 @@
+name: 200G 极限暗流搬运 (Stealth Transfer)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stealth-transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360 # GitHub 极限存活时间：6小时
+
+    steps:
+      - name: 1. 物理环境爆破 (强行榨干 20GB 系统硬盘)
+        run: |
+          echo "=== 💥 正在强行卸载无用环境释放空间 ==="
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h
+
+      - name: 2. 部署底层隐蔽装甲 (Cloudflare WARP 加密隧道)
+        run: |
+          echo "=== 🛡️ 正在拉起网络伪装防线 ==="
+          # 安装 WARP 和相关依赖
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update -qq && sudo apt-get install -y cloudflare-warp aria2 python3-pip -qq
+          
+          # 配置 WARP 为本地 SOCKS5 代理模式 (端口 40000)
+          sudo warp-cli --accept-tos registration new
+          sudo warp-cli --accept-tos mode proxy
+          sudo warp-cli --accept-tos connect
+          sleep 5
+          sudo warp-cli --accept-tos status
+
+      - name: 3. 注入 Rclone 挂载秘钥
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          curl -s https://rclone.org/install.sh | sudo bash
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
+
+      - name: 4. 执行核心突围逻辑 (8GB极细切片 + 隧道传输)
+        run: |
+          cat << 'EOF' > stealth_transfer.py
+          import os
+          import subprocess
+          import re
+          import sys
+
+          MAGNET = "magnet:?xt=urn:btih:94CECDCEA60B073B6D799FE31886CCBAB4D347B6"
+          REMOTE_PATH = "123pan:视频"
+          CHUNK_SIZE_GB = 8  # 生死线：绝对不能超过虚拟机的物理极限
+
+          # Aria2 隐蔽参数：强制走 WARP 隧道 + 强制 BT 流量加密
+          ARIA_CMD = (
+              "aria2c "
+              "--all-proxy='socks5://127.0.0.1:40000' "
+              "--bt-require-crypto=true "
+              "--bt-min-crypto-level=arc4 "
+              "--max-connection-per-server=16 "
+              "--summary-interval=15 "
+          )
+
+          print("=== 📡 阶段一：穿透伪装获取磁力特征 ===")
+          # 仅获取种子，不触发大量下载
+          subprocess.run(ARIA_CMD + f"--bt-metadata-only=true --bt-save-metadata=true '{MAGNET}'", shell=True)
+
+          torrent_files = [f for f in os.listdir('.') if f.endswith('.torrent')]
+          if not torrent_files:
+              print("❌ 突围失败：磁力链接死链或被 WARP 节点墙掉！")
+              sys.exit(1)
+          torrent_file = torrent_files[0]
+
+          print("=== 📦 阶段二：200GB 资源 8GB 极限微操切片 ===")
+          output = subprocess.check_output(f"aria2c --show-files '{torrent_file}'", shell=True).decode('utf-8')
+          
+          files = []
+          current_idx = None
+          for line in output.split('\n'):
+              match_idx = re.match(r'^\s*(\d+)\|(.+)', line)
+              if match_idx:
+                  current_idx = match_idx.group(1)
+              else:
+                  match_size = re.match(r'^\s*\|.*?\(([\d,]+)\)', line)
+                  if match_size and current_idx is not None:
+                      files.append((current_idx, int(match_size.group(1).replace(',', ''))))
+                      current_idx = None
+
+          chunks, current_chunk, current_size = [], [], 0
+          for f_id, f_size in files:
+              f_size_gb = f_size / (1024**3)
+              if current_size + f_size_gb > CHUNK_SIZE_GB and current_chunk:
+                  chunks.append(current_chunk)
+                  current_chunk, current_size = [], 0
+              current_chunk.append(f_id)
+              current_size += f_size_gb
+          if current_chunk: chunks.append(current_chunk)
+
+          download_dir = "/mnt/downloads"
+          os.makedirs(download_dir, exist_ok=True)
+
+          print(f"=== 🚀 阶段三：开始死战！切片总数：{len(chunks)} 批 ===")
+          for i, chunk in enumerate(chunks):
+              ids = ",".join(chunk)
+              print(f"\n--- 🔄 正在执行第 {i+1}/{len(chunks)} 批次 ---")
+              
+              # 1. 隧道暗流下载
+              dl_cmd = ARIA_CMD + f"--dir='{download_dir}' --select-file={ids} --seed-time=0 '{torrent_file}'"
+              subprocess.run(dl_cmd, shell=True)
+              
+              # 2. 直推 123云盘
+              print("📤 正在将切片偷渡至 123云盘...")
+              subprocess.run(f"rclone move '{download_dir}' '{REMOTE_PATH}' -v --delete-empty-src-dirs", shell=True)
+              
+              # 3. 物理销毁
+              print("🧹 销毁本地数据痕迹...")
+              subprocess.run(f"rm -rf '{download_dir}'/*", shell=True)
+
+          print("\n🎉 200GB 极限暗流搬运战役宣告胜利！")
+          EOF
+          sudo python3 stealth_transfer.py
+
