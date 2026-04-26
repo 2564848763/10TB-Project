@@ -1,61 +1,73 @@
-name: 终极精准狙击abc空文件夹 (无死角防报错版)
+name: 删除123网盘空文件夹(一次清除)
 
 on:
   workflow_dispatch:
 
 jobs:
-  clean-empty-dirs:
+  clean:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. 极速安装 Rclone
-        run: curl https://rclone.org/install.sh | sudo bash
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: 2. 无损挂载配置
+      - name: 一次清理所有空文件夹
         env:
-          CONF: ${{ secrets.RCLONE_CONFIG }}
+          PAN123_USER: ${{ secrets.PAN123_USER }}
+          PAN123_PASS: ${{ secrets.PAN123_PASS }}
         run: |
-          mkdir -p ~/.config/rclone
-          python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
+          pip install webdavclient3
+          python -c "
+          import os
+          from webdav3.client import Client
 
-      - name: 3. 执行精密外科手术式清理
-        run: |
-          cat << 'EOF' > clean.py
-          import subprocess
+          client = Client({
+              'webdav_hostname': 'https://webdav.123pan.cn/webdav',
+              'webdav_login': os.environ['PAN123_USER'],
+              'webdav_password': os.environ['PAN123_PASS']
+          })
 
-          print("=== 🚀 正在开启最高精度雷达扫描 abc 文件夹 ===")
-          
-          # 1. 揪出所有子文件夹（使用绝对路径 123pan:/abc 保证不迷路）
-          res = subprocess.run(['rclone', 'lsf', '123pan:/abc', '-R', '--dirs-only'], capture_output=True, text=True)
-          if res.returncode != 0:
-              print(f"❌ 扫描失败，123云盘报错：{res.stderr}")
-              exit(0)  # 强行让脚本绿灯通过，不给你报红
-          
-          # 2. 核心清洗：切掉所有多余的斜杠！并按深度排序（先拔深层的，再拔外层的）
-          dirs = [d.strip().strip('/') for d in res.stdout.split('\n') if d.strip()]
-          dirs.sort(key=lambda x: x.count('/'), reverse=True)
+          # 获取所有文件夹，并建立父子关系
+          dirs = []
+          parent_of = {}
 
-          count = 0
-          print(f"📡 共发现 {len(dirs)} 个子文件夹，正在逐一排查谁是空壳...")
-          
+          def scan(path='/'):
+              for item in client.list(path, get_info=True):
+                  if item['path'].rstrip('/') == path.rstrip('/'):
+                      continue
+                  if item['isdir']:
+                      child = item['path']
+                      parent_of[child] = path
+                      dirs.append(child)
+                      scan(child)
+
+          scan('/')
+
+          # 按深度从深到浅处理，保证先处理最底层文件夹
+          dirs.sort(key=lambda p: p.count('/'), reverse=True)
+
+          def is_empty(path):
+              try:
+                  # list 的内容如果只有 '..' 和 '.' 或不含任何条目（除本身），则为空
+                  items = client.list(path)
+                  # webdavclient3 的 list 返回的名称列表包含 '..' 和文件夹本身？实测。
+                  # 更可靠的方法：用 list(path, get_info=False) 检查列表长度
+                  return len([i for i in items if i.strip() not in ('', '.', '..')]) == 0
+              except:
+                  return False
+
+          def try_delete(path):
+              if is_empty(path):
+                  client.rmdir(path)
+                  print(f'已删除空文件夹: {path}')
+                  # 向上回溯，父文件夹可能也变空
+                  parent = parent_of.get(path)
+                  if parent and parent != '/':
+                      try_delete(parent)
+
           for d in dirs:
-              # 拼凑出绝对干净、没有双斜杠的完美路径
-              full_path = f"123pan:/abc/{d}"
-              
-              # 3. 拿手电筒照一下里面有没有文件
-              check = subprocess.run(['rclone', 'lsf', full_path], capture_output=True, text=True)
-              contents = check.stdout.strip()
-              
-              if not contents:
-                  print(f"🎯 锁定绝对空壳：[{d}]")
-                  # 4. 动用最稳妥的单点安全移除命令 rmdir
-                  del_res = subprocess.run(['rclone', 'rmdir', full_path], capture_output=True, text=True)
-                  
-                  if del_res.returncode == 0:
-                      print("   ✅ 狙击粉碎成功！")
-                      count += 1
-                  else:
-                      print(f"   ⚠️ 云盘拒绝放行，原因：{del_res.stderr.strip()}")
-              
-          print(f"\n=== 🧹 战斗彻底结束！共成功清除了 {count} 个顽固空壳！ ===")
-          EOF
-          python clean.py
+              try_delete(d)
+
+          print('全部空文件夹清理完毕')
+          "
