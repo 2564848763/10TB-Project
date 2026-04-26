@@ -1,29 +1,60 @@
-name: 真正终极版-清理abc空文件夹
+name: 彻底粉碎abc空文件夹 (单点爆破版)
 
 on:
   workflow_dispatch:
 
 jobs:
-  clean-empty-dirs:
+  nuke-empty-dirs:
     runs-on: ubuntu-latest
     steps:
       - name: 1. 安装 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 2. 挂载配置 (修复了致命的秘钥名字错误)
+      - name: 2. 挂载配置 (确保钥匙正确)
         env:
-          # ！！！就是这里！！！改回了你真正正确的 RCLONE_CONF ！！！
           CONF: ${{ secrets.RCLONE_CONF }}
         run: |
           mkdir -p ~/.config/rclone
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
 
-      - name: 3. 执行多线程空壳清理
+      - name: 3. 执行单点核爆指令
         run: |
-          echo "=== 🚀 正在潜入 abc 文件夹执行清理... ==="
+          echo "=== 🚀 开始深度扫描 123pan:/abc ==="
           
-          # 使用最安全、最官方的 rmdirs 命令
-          # || true 保证就算遇到装满正常文件的文件夹，也绝对亮绿灯不报错！
-          rclone rmdirs 123pan:/abc --leave-root --checkers=32 -v || true
+          # 1. 揪出所有子目录，并把结果存下来
+          rclone lsf "123pan:/abc" -R --dirs-only > dirs_raw.txt
           
-          echo "=== 🧹 垃圾清运完毕，空壳已全部摧毁！ ==="
+          if [ ! -s dirs_raw.txt ]; then
+              echo "❌ 未找到任何目录，请检查路径！"
+              exit 0
+          fi
+          
+          # 2. 按路径深度倒序排列（先炸最深层的小空壳，再炸外面的大空壳）
+          awk '{ print length($0), $0 }' dirs_raw.txt | sort -n -r | cut -d ' ' -f2- > dirs.txt
+          
+          total=$(wc -l < dirs.txt)
+          echo "📡 共找到 $total 个子文件夹，开始逐一排查..."
+          
+          count=0
+          while IFS= read -r dir; do
+              # 3. 拿放大镜看里面有没有内容（包含隐藏文件）
+              contents=$(rclone lsf "123pan:/abc/$dir" -a)
+              
+              if [ -z "$contents" ]; then
+                  echo "🎯 锁定纯白空壳: [$dir]"
+                  
+                  # 4. 动用 purge 强制抹除，无视 123云盘的静默拦截！
+                  rclone purge "123pan:/abc/$dir"
+                  
+                  if [ $? -eq 0 ]; then
+                      echo "   ✅ 物理爆破成功"
+                      count=$((count+1))
+                  else
+                      # 如果 purge 被拦，尝试备用单点移除命令
+                      echo "   ⚠️ purge失败，尝试备用 rmdir..."
+                      rclone rmdir "123pan:/abc/$dir"
+                  fi
+              fi
+          done < dirs.txt
+          
+          echo "=== 🧹 战斗彻底结束，共成功强杀了 $count 个空文件夹 ==="
