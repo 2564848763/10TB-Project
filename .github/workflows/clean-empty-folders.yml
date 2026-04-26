@@ -23,16 +23,18 @@ jobs:
           from webdav3.client import Client
 
           client = Client({
-              'webdav_hostname': 'https://webdav.123pan.cn/webdav',
+              'webdav_hostname': 'https://webdav.123pan.cn',  # 只写基础地址
               'webdav_login': os.environ['PAN123_USER'],
               'webdav_password': os.environ['PAN123_PASS']
           })
 
-          # 获取所有文件夹，并建立父子关系
+          # 根目录从 /webdav 开始
+          ROOT = '/webdav'
+
           dirs = []
           parent_of = {}
 
-          def scan(path='/'):
+          def scan(path):
               for item in client.list(path, get_info=True):
                   if item['path'].rstrip('/') == path.rstrip('/'):
                       continue
@@ -42,17 +44,13 @@ jobs:
                       dirs.append(child)
                       scan(child)
 
-          scan('/')
+          scan(ROOT)
 
-          # 按深度从深到浅处理，保证先处理最底层文件夹
           dirs.sort(key=lambda p: p.count('/'), reverse=True)
 
           def is_empty(path):
               try:
-                  # list 的内容如果只有 '..' 和 '.' 或不含任何条目（除本身），则为空
                   items = client.list(path)
-                  # webdavclient3 的 list 返回的名称列表包含 '..' 和文件夹本身？实测。
-                  # 更可靠的方法：用 list(path, get_info=False) 检查列表长度
                   return len([i for i in items if i.strip() not in ('', '.', '..')]) == 0
               except:
                   return False
@@ -60,14 +58,13 @@ jobs:
           def try_delete(path):
               if is_empty(path):
                   client.rmdir(path)
-                  print(f'已删除空文件夹: {path}')
-                  # 向上回溯，父文件夹可能也变空
+                  print(f'✅ 已删除空文件夹: {path}')
                   parent = parent_of.get(path)
-                  if parent and parent != '/':
+                  if parent and parent != ROOT:
                       try_delete(parent)
 
           for d in dirs:
               try_delete(d)
 
-          print('全部空文件夹清理完毕')
+          print('🎉 全部空文件夹清理完毕')
           "
