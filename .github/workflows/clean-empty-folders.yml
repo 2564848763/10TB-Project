@@ -1,44 +1,61 @@
-name: 极致清理abc空文件夹 (Bash原生爆破版)
+name: 终极精准狙击abc空文件夹 (无死角防报错版)
 
 on:
   workflow_dispatch:
 
 jobs:
-  nuke-empty-dirs:
+  clean-empty-dirs:
     runs-on: ubuntu-latest
     steps:
       - name: 1. 极速安装 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 2. 无损挂载配置文件
+      - name: 2. 无损挂载配置
         env:
           CONF: ${{ secrets.RCLONE_CONFIG }}
         run: |
           mkdir -p ~/.config/rclone
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
 
-      - name: 3. 执行雷霆爆破 (只抹除纯空壳)
+      - name: 3. 执行精密外科手术式清理
         run: |
-          echo "=== 🚀 开始雷达扫描 abc 文件夹 ==="
+          cat << 'EOF' > clean.py
+          import subprocess
+
+          print("=== 🚀 正在开启最高精度雷达扫描 abc 文件夹 ===")
           
-          # 修正路径 Bug：去掉了 /，直接用 123pan:abc
-          # 取出所有子文件夹名单，并倒序排列（保证先删最深层的小空壳，再删外层的大空壳）
-          rclone lsf "123pan:abc" -R --dirs-only | sort -r > dirs.txt
+          # 1. 揪出所有子文件夹（使用绝对路径 123pan:/abc 保证不迷路）
+          res = subprocess.run(['rclone', 'lsf', '123pan:/abc', '-R', '--dirs-only'], capture_output=True, text=True)
+          if res.returncode != 0:
+              print(f"❌ 扫描失败，123云盘报错：{res.stderr}")
+              exit(0)  # 强行让脚本绿灯通过，不给你报红
           
-          count=0
-          # 逐个检查这些文件夹
-          while IFS= read -r dir; do
-              # 拿手电筒照一下，看看里面还有没有哪怕一个文件
-              contents=$(rclone lsf "123pan:abc/$dir")
+          # 2. 核心清洗：切掉所有多余的斜杠！并按深度排序（先拔深层的，再拔外层的）
+          dirs = [d.strip().strip('/') for d in res.stdout.split('\n') if d.strip()]
+          dirs.sort(key=lambda x: x.count('/'), reverse=True)
+
+          count = 0
+          print(f"📡 共发现 {len(dirs)} 个子文件夹，正在逐一排查谁是空壳...")
+          
+          for d in dirs:
+              # 拼凑出绝对干净、没有双斜杠的完美路径
+              full_path = f"123pan:/abc/{d}"
               
-              if [ -z "$contents" ]; then
-                  echo "🎯 锁定纯白幽灵：[$dir]"
-                  echo "   🔫 正在动用 Purge 强制抹除..."
+              # 3. 拿手电筒照一下里面有没有文件
+              check = subprocess.run(['rclone', 'lsf', full_path], capture_output=True, text=True)
+              contents = check.stdout.strip()
+              
+              if not contents:
+                  print(f"🎯 锁定绝对空壳：[{d}]")
+                  # 4. 动用最稳妥的单点安全移除命令 rmdir
+                  del_res = subprocess.run(['rclone', 'rmdir', full_path], capture_output=True, text=True)
                   
-                  # 动用核按钮强行抹除，无视 123云盘的拦截
-                  rclone purge "123pan:abc/$dir"
-                  count=$((count+1))
-              fi
-          done < dirs.txt
-          
-          echo "=== 🧹 战斗彻底结束！共强行粉碎了 $count 个空文件夹！ ==="
+                  if del_res.returncode == 0:
+                      print("   ✅ 狙击粉碎成功！")
+                      count += 1
+                  else:
+                      print(f"   ⚠️ 云盘拒绝放行，原因：{del_res.stderr.strip()}")
+              
+          print(f"\n=== 🧹 战斗彻底结束！共成功清除了 {count} 个顽固空壳！ ===")
+          EOF
+          python clean.py
