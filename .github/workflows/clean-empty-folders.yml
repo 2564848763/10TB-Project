@@ -1,10 +1,10 @@
-name: 彻底粉碎abc空文件夹 (终极爆破修复版)
+name: 123云盘全自动去重与空壳清理
 
 on:
   workflow_dispatch:
 
 jobs:
-  nuke-empty-dirs:
+  cleanup:
     runs-on: ubuntu-latest
     steps:
       - name: 1. 安装 Rclone
@@ -17,40 +17,15 @@ jobs:
           mkdir -p ~/.config/rclone
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
 
-      - name: 3. 执行单点核爆指令
+      - name: 3. 第一步：全盘去重 (解决影子文件问题)
         run: |
-          echo "=== 🚀 开始深度扫描 123pan:/abc ==="
-          
-          rclone lsf "123pan:/abc" -R --dirs-only > dirs_raw.txt
-          
-          if [ ! -s dirs_raw.txt ]; then
-              echo "❌ 未找到任何目录，请检查路径！"
-              exit 0
-          fi
-          
-          awk '{ print length($0), $0 }' dirs_raw.txt | sort -n -r | cut -d ' ' -f2- > dirs.txt
-          
-          total=$(wc -l < dirs.txt)
-          echo "📡 共找到 $total 个子文件夹，开始逐一排查..."
-          
-          count=0
-          while IFS= read -r dir; do
-              # ！！！就是这里，去掉了那个坑人的 -a ！！！
-              contents=$(rclone lsf "123pan:/abc/$dir")
-              
-              if [ -z "$contents" ]; then
-                  echo "🎯 锁定纯白空壳: [$dir]"
-                  
-                  rclone purge "123pan:/abc/$dir"
-                  
-                  if [ $? -eq 0 ]; then
-                      echo "   ✅ 物理爆破成功"
-                      count=$((count+1))
-                  else
-                      echo "   ⚠️ purge失败，尝试备用 rmdir..."
-                      rclone rmdir "123pan:/abc/$dir"
-                  fi
-              fi
-          done < dirs.txt
-          
-          echo "=== 🧹 战斗彻底结束，共成功强杀了 $count 个空文件夹 ==="
+          echo "=== 🛡️ 正在清理重复项，请稍后... ==="
+          # rename 模式会将重名文件自动改名合并，解决“看似空其实有重复项”的问题
+          rclone dedupe rename 123pan:abc -v --threads 16
+
+      - name: 4. 第二步：强力扫地 (清理空文件夹)
+        run: |
+          echo "=== 🧹 正在执行官方 rmdirs 强力清理... ==="
+          # rmdirs 是官方专门删空目录的，配合 -v 能看到每一条删除记录
+          # --leave-root 保证 abc 文件夹本身不被删掉
+          rclone rmdirs 123pan:abc --leave-root -v
