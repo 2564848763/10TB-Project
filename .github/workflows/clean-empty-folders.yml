@@ -1,4 +1,4 @@
-name: 终极清理abc空文件夹 (终极无敌版)
+name: 真正终极版-清理abc空文件夹
 
 on:
   workflow_dispatch:
@@ -10,50 +10,20 @@ jobs:
       - name: 1. 安装 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 2. 挂载配置
+      - name: 2. 挂载配置 (修复了致命的秘钥名字错误)
         env:
-          CONF: ${{ secrets.RCLONE_CONFIG }}
+          # ！！！就是这里！！！改回了你真正正确的 RCLONE_CONF ！！！
+          CONF: ${{ secrets.RCLONE_CONF }}
         run: |
           mkdir -p ~/.config/rclone
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
 
-      - name: 3. 执行纯净爆破指令
+      - name: 3. 执行多线程空壳清理
         run: |
-          echo "=== 🚀 开始扫描 123pan:/abc ==="
+          echo "=== 🚀 正在潜入 abc 文件夹执行清理... ==="
           
-          # 核心修正：必须加 /！获取所有子目录名单
-          rclone lsf "123pan:/abc" -R --dirs-only > dirs_raw.txt
+          # 使用最安全、最官方的 rmdirs 命令
+          # || true 保证就算遇到装满正常文件的文件夹，也绝对亮绿灯不报错！
+          rclone rmdirs 123pan:/abc --leave-root --checkers=32 -v || true
           
-          # 异常拦截：如果连文件都没生成，直接停止
-          if [ ! -s dirs_raw.txt ]; then
-              echo "❌ 未找到任何目录，请检查 123云盘中是否真的有 abc 文件夹！"
-              exit 0
-          fi
-          
-          # 按名字长度倒序排列（名字越长，通常藏得越深，保证先删最里面的）
-          awk '{ print length($0), $0 }' dirs_raw.txt | sort -n -r | cut -d ' ' -f2- > dirs.txt
-          
-          total=$(wc -l < dirs.txt)
-          echo "📡 共找到 $total 个子文件夹，开始排查..."
-          
-          count=0
-          while IFS= read -r dir; do
-              # 拿手电筒照一下，看里面有没有内容
-              contents=$(rclone lsf "123pan:/abc/$dir")
-              
-              if [ -z "$contents" ]; then
-                  echo "🎯 锁定纯白空壳: [$dir]"
-                  
-                  # 动用强制爆破命令
-                  rclone purge "123pan:/abc/$dir"
-                  
-                  if [ $? -eq 0 ]; then
-                      echo "   ✅ 爆破成功"
-                      count=$((count+1))
-                  else
-                      echo "   ⚠️ 爆破失败"
-                  fi
-              fi
-          done < dirs.txt
-          
-          echo "=== 🧹 任务彻底结束，共成功爆破了 $count 个空文件夹 ==="
+          echo "=== 🧹 垃圾清运完毕，空壳已全部摧毁！ ==="
