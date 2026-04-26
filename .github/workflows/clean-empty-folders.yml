@@ -1,4 +1,4 @@
-name: 删除123网盘空文件夹(诊断版)
+name: 删除123网盘空文件夹(修正版)
 
 on:
   workflow_dispatch:
@@ -12,14 +12,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 诊断清理所有空文件夹
+      - name: 运行清理脚本
         env:
           PAN123_USER: ${{ secrets.PAN123_USER }}
           PAN123_PASS: ${{ secrets.PAN123_PASS }}
         run: |
           pip install webdavclient3
           python -c "
-          import os, traceback
+          import os
           from webdav3.client import Client
 
           client = Client({
@@ -28,17 +28,16 @@ jobs:
               'webdav_password': os.environ['PAN123_PASS']
           })
 
-          ROOT = '/webdav'
-
+          ROOT = '/webdav'  # 你的123网盘WebDAV根路径
           dirs = []
           parent_of = {}
-          scan_errors = []
+          stats = {'deleted': 0, 'scanned': 0, 'errors': []}
 
           def scan(path):
               try:
                   items = client.list(path, get_info=True)
               except Exception as e:
-                  scan_errors.append(f'扫描失败 {path}: {e}')
+                  stats['errors'].append(f'扫描失败 {path}: {e}')
                   return
               for item in items:
                   if item['path'].rstrip('/') == path.rstrip('/'):
@@ -47,50 +46,47 @@ jobs:
                       child = item['path']
                       parent_of[child] = path
                       dirs.append(child)
+                      stats['scanned'] += 1
                       scan(child)
 
           print(f'🌀 开始扫描根目录: {ROOT}')
           scan(ROOT)
-          print(f'📂 扫描到 {len(dirs)} 个文件夹')
-          if scan_errors:
-              print('⚠️ 扫描错误:')
-              for e in scan_errors:
-                  print(f'   - {e}')
+          print(f'📂 共扫描到 {stats[\"scanned\"]} 个文件夹')
+          for err in stats['errors']:
+              print(f'   ⚠️ {err}')
 
+          # 按深度从深到浅排序
           dirs.sort(key=lambda p: p.count('/'), reverse=True)
-
-          empty_count = 0
-          delete_errors = []
 
           def is_empty(path):
               try:
                   items = client.list(path)
-                  # 过滤空字符串、当前目录、父目录标识
-                  return len([i for i in items if i.strip() not in ('', '.', '..')]) == 0
+                  filenames = [i for i in items if i.strip() not in ('', '.', '..')]
+                  return len(filenames) == 0
               except Exception as e:
-                  delete_errors.append(f'检查空目录失败 {path}: {e}')
+                  stats['errors'].append(f'检查空目录失败 {path}: {e}')
                   return False
 
           def try_delete(path):
-              nonlocal empty_count
               if is_empty(path):
                   try:
                       client.rmdir(path)
                       print(f'✅ 已删除空文件夹: {path}')
-                      empty_count += 1
+                      stats['deleted'] += 1
+                      # 向上回溯，父文件夹可能也变空
                       parent = parent_of.get(path)
                       if parent and parent != ROOT:
                           try_delete(parent)
                   except Exception as e:
-                      delete_errors.append(f'删除失败 {path}: {e}')
+                      stats['errors'].append(f'删除失败 {path}: {e}')
 
           for d in dirs:
               try_delete(d)
 
-          print(f'🎯 共删除空文件夹: {empty_count}')
-          if delete_errors:
-              print('⚠️ 删除/检查中的错误:')
-              for e in delete_errors:
+          print(f'🎯 共删除空文件夹: {stats[\"deleted\"]}')
+          if stats['errors']:
+              print('⚠️ 运行中出现以下错误:')
+              for e in stats['errors']:
                   print(f'   - {e}')
-          print('🎉 诊断运行结束')
+          print('🎉 清理流程结束')
           "
