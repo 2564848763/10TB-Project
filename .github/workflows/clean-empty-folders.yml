@@ -1,4 +1,4 @@
-name: 极致清理123云盘空文件夹
+name: 全盘大扫除-清理所有空文件夹
 
 on:
   workflow_dispatch:
@@ -7,26 +7,23 @@ jobs:
   clean-empty-dirs:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. 安装 Rclone 核心组件
+      - name: 1. 安装 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 2. 挂载 123云盘配置文件
+      - name: 2. 挂载配置文件
         env:
           CONF: ${{ secrets.RCLONE_CONFIG }}
         run: |
           mkdir -p ~/.config/rclone
           python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
-          echo "=== 🔑 账号配置加载成功！ ==="
 
-      - name: 3. 执行空文件夹深度清理
+      - name: 3. 执行全盘清理
         run: |
-          echo "=== 🚀 正在钻入 abc 文件夹执行深度清理... ==="
+          echo "=== 🚀 正在开启全盘雷达，扫描并清理 123云盘 所有的空文件夹 ==="
           
-          # rmdirs：只删空文件夹
-          # 123pan:/abc：精准锁定大门
-          # --leave-root：保护 abc 这个最外层的总文件夹不被删掉
-          # --checkers=32：开 32 个扫地机器人同时往下钻探
+          # 123pan:/ 代表直接从网盘最外层大门开始往下扫
+          # --checkers=32 开启32个线程极速扫描
           
-          rclone rmdirs 123pan:/abc --leave-root --checkers=32 -v
+          rclone rmdirs 123pan:/ --checkers=32 -v
           
-          echo "=== 🧹 垃圾清运完毕，空壳已全部摧毁！ ==="
+          echo "=== 🧹 垃圾清运完毕，整个网盘现已完美无瑕！ ==="
