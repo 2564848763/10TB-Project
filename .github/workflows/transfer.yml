@@ -1,4 +1,4 @@
-name: J文件夹 物理极限对拷 (终极完全体)
+name: m & l 文件夹 终极极限对扣版
 
 on:
   workflow_dispatch:
@@ -9,9 +9,8 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: 1. 物理机底层网络魔改 (注入 BBR)
+      - name: 1. 物理机底层网络魔改 (BBR & TCP 优化)
         run: |
-          echo "=== 💥 正在解除 Ubuntu 虚拟机网络封印 ==="
           sudo sysctl -w net.core.default_qdisc=fq
           sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
           sudo sysctl -w net.core.rmem_max=67108864
@@ -21,44 +20,45 @@ jobs:
           sudo sysctl -w net.ipv4.tcp_mtu_probing=1
           ulimit -n 65535
 
-      - name: 2. 部署 Rclone 核心环境
+      - name: 2. 部署 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 3. 动态构建挂载点 (填入真·底层接口)
+      - name: 3. 动态构建挂载点 (Secrets 自动化)
         env:
           PIKPAK_USER: ${{ secrets.PIKPAK_USER }}
           PIKPAK_PASS: ${{ secrets.PIKPAK_PASS }}
           PAN123_USER: ${{ secrets.PAN123_USER }}
           PAN123_PASS: ${{ secrets.PAN123_PASS }}
         run: |
-          echo "=== 🛠️ 组装 PikPak 节点 ==="
           rclone config create pikpak pikpak user "$PIKPAK_USER" pass "$PIKPAK_PASS"
-          
-          echo "=== 🛠️ 组装 123云盘 WebDAV 节点 ==="
-          # 这里已经替换为你提供的最准确的底层数据通道接口
           rclone config create 123pan webdav url "https://webdav.123pan.cn/webdav" vendor other user "$PAN123_USER" pass "$PAN123_PASS"
 
-      - name: 4. 预检测防阻断 (强制铺设目录)
+      - name: 4. 预建目录阵地
         run: |
-          echo "=== 📁 正在 123云盘 开辟专属阵地 ==="
-          rclone mkdir "123pan:/视频/j" || true
+          # 同时为 m 和 l 创建目标坑位
+          rclone mkdir "123pan:/视频/m" || true
+          rclone mkdir "123pan:/视频/l" || true
 
-      - name: 5. 满血引擎启动 (极致并发 + 瞬时断点续传)
+      - name: 5. 满血引擎启动 (m & l 文件夹顺序压榨)
         run: |
-          # 核心压榨指令，无视已传文件，直取目标
-          rclone copy "pikpak:/j" "123pan:/视频/j" -v \
-            --transfers 24 \
-            --checkers 48 \
-            --buffer-size 128M \
-            --multi-thread-streams 4 \
-            --use-mmap \
-            --size-only \
-            --ignore-existing \
-            --tpslimit 12 \
-            --tpslimit-burst 12 \
-            --low-level-retries 20 \
-            --retries 15 \
-            --timeout 10m \
-            --contimeout 10m \
-            --stats 15s \
-            --stats-one-line
+          # 定义需要搬运的列表
+          for folder in m l; do
+            echo "=== 🚀 正在全力攻克文件夹: $folder ==="
+            rclone copy "pikpak:/$folder" "123pan:/视频/$folder" -v \
+              --transfers 24 \
+              --checkers 64 \
+              --fast-list \
+              --buffer-size 128M \
+              --multi-thread-streams 4 \
+              --use-mmap \
+              --size-only \
+              --ignore-existing \
+              --tpslimit 12 \
+              --tpslimit-burst 12 \
+              --low-level-retries 25 \
+              --retries 20 \
+              --timeout 15m \
+              --contimeout 15m \
+              --stats 15s \
+              --stats-one-line
+          done
