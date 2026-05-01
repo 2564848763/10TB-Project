@@ -1,4 +1,4 @@
-name: J文件夹 终极黑科技对拷 (BBR满血版)
+name: J文件夹 物理极限压榨对拷版
 
 on:
   workflow_dispatch:
@@ -6,37 +6,23 @@ on:
 jobs:
   transfer:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # 极限存活 6 小时
+    timeout-minutes: 360
 
     steps:
-      - name: 1. 物理机底层网络魔改 (注入 BBR & 撑爆 TCP 窗口)
+      - name: 1. 物理机底层网络魔改 (注入 BBR)
         run: |
-          echo "=== 💥 正在破解系统网络封印 ==="
-          # 开启 BBR 拥塞控制算法，极其适合这种跨国/跨网盘的大流量传输
           sudo sysctl -w net.core.default_qdisc=fq
           sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
-          
-          # 暴力撑大 TCP 接收和发送缓冲区最大值到 64MB (默认极小)
           sudo sysctl -w net.core.rmem_max=67108864
           sudo sysctl -w net.core.wmem_max=67108864
           sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 67108864"
           sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 67108864"
-          
-          # 开启 MTU 探测，自动寻找最优数据包大小，防止丢包阻塞
           sudo sysctl -w net.ipv4.tcp_mtu_probing=1
-          
-          # 关闭 TCP 空闲后的慢启动，保证只要有数据就一直满速狂飙
           sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=0
-          
-          # 解除 Linux 文件描述符限制，支持超高并发连接
           ulimit -n 65535
-          
-          echo "=== 🛡️ 验证 BBR 是否成功注入 ==="
-          sysctl net.ipv4.tcp_congestion_control
 
-      - name: 2. 部署 Rclone 核心环境
-        run: |
-          curl https://rclone.org/install.sh | sudo bash
+      - name: 2. 部署 Rclone
+        run: curl https://rclone.org/install.sh | sudo bash
 
       - name: 3. 注入全局挂载秘钥
         env:
@@ -45,22 +31,19 @@ jobs:
           mkdir -p ~/.config/rclone
           echo "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
 
-      - name: 4. 终极引擎启动 (动态切片 + TPS 防封锁 + 内存复用)
+      - name: 4. 极限引擎启动 (跳过哈希 + 忽略已存 + 多线程切块)
         run: |
-          # 开始对 j 文件夹执行降维打击
           rclone copy "pikpak:/j" "123pan:/视频/j" -v \
-            --transfers 32 \
-            --checkers 64 \
-            --buffer-size 256M \
+            --transfers 24 \
+            --checkers 48 \
+            --buffer-size 128M \
+            --multi-thread-streams 4 \
             --use-mmap \
-            --vfs-read-chunk-size 32M \
-            --vfs-read-chunk-size-limit 2G \
+            --size-only \
+            --ignore-existing \
             --tpslimit 12 \
             --tpslimit-burst 12 \
-            --low-level-retries 15 \
-            --retries 10 \
-            --timeout 10m \
-            --contimeout 10m \
+            --low-level-retries 20 \
+            --retries 15 \
             --stats 15s \
             --stats-one-line
-
