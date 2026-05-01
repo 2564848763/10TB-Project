@@ -1,4 +1,4 @@
-name: J文件夹 物理极限压榨对拷版
+name: J文件夹 物理极限对拷 (配置动态生成版)
 
 on:
   workflow_dispatch:
@@ -24,12 +24,20 @@ jobs:
       - name: 2. 部署 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 3. 注入全局挂载秘钥
+      - name: 3. 全自动动态构建挂载点 (调用你的独立 Secrets)
         env:
-          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+          PIKPAK_USER: ${{ secrets.PIKPAK_USER }}
+          PIKPAK_PASS: ${{ secrets.PIKPAK_PASS }}
+          PAN123_USER: ${{ secrets.PAN123_USER }}
+          PAN123_PASS: ${{ secrets.PAN123_PASS }}
         run: |
-          mkdir -p ~/.config/rclone
-          echo "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
+          echo "=== 🛠️ 正在为你动态生成并加密 Rclone 配置 ==="
+          # 使用 rclone config create 官方命令，自动完成密码 obscure 加密
+          rclone config create pikpak pikpak user "$PIKPAK_USER" pass "$PIKPAK_PASS"
+          rclone config create 123pan webdav url "https://www.123pan.com/webdav" vendor other user "$PAN123_USER" pass "$PAN123_PASS"
+          
+          echo "=== 🔍 当前生效的网盘节点如下 ==="
+          rclone listremotes
 
       - name: 4. 极限引擎启动 (跳过哈希 + 忽略已存 + 多线程切块)
         run: |
