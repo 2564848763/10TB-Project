@@ -1,51 +1,66 @@
-name: GDrive to 123Pan SA Transfer
+name: J文件夹 终极黑科技对拷 (BBR满血版)
 
 on:
   workflow_dispatch:
 
 jobs:
-  transfer-data:
+  transfer:
     runs-on: ubuntu-latest
-    # 设置较长的超时时间，确保大批量迁移不中断
-    timeout-minutes: 2880 
+    timeout-minutes: 360 # 极限存活 6 小时
 
     steps:
-      - name: 1. 开启 BBR 优化传输速度
+      - name: 1. 物理机底层网络魔改 (注入 BBR & 撑爆 TCP 窗口)
         run: |
+          echo "=== 💥 正在破解系统网络封印 ==="
+          # 开启 BBR 拥塞控制算法，极其适合这种跨国/跨网盘的大流量传输
           sudo sysctl -w net.core.default_qdisc=fq
           sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+          
+          # 暴力撑大 TCP 接收和发送缓冲区最大值到 64MB (默认极小)
+          sudo sysctl -w net.core.rmem_max=67108864
+          sudo sysctl -w net.core.wmem_max=67108864
+          sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 67108864"
+          sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 67108864"
+          
+          # 开启 MTU 探测，自动寻找最优数据包大小，防止丢包阻塞
+          sudo sysctl -w net.ipv4.tcp_mtu_probing=1
+          
+          # 关闭 TCP 空闲后的慢启动，保证只要有数据就一直满速狂飙
+          sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=0
+          
+          # 解除 Linux 文件描述符限制，支持超高并发连接
+          ulimit -n 65535
+          
+          echo "=== 🛡️ 验证 BBR 是否成功注入 ==="
+          sysctl net.ipv4.tcp_congestion_control
 
-      - name: 2. 安装最新版 Rclone
-        run: curl https://rclone.org/install.sh | sudo bash
+      - name: 2. 部署 Rclone 核心环境
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
 
-      - name: 3. 准备配置文件和 SA 密钥
+      - name: 3. 注入全局挂载秘钥
         env:
-          CONF: ${{ secrets.RCLONE_CONF }}
-          SA_KEY: ${{ secrets.SA_JSON }}
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
         run: |
           mkdir -p ~/.config/rclone
-          # 写入 123云盘 和 gdrive 的基础配置
-          python3 -c "import os; open(os.path.expanduser('~/.config/rclone/rclone.conf'), 'w').write(os.environ['CONF'])"
-          # 写入谷歌 SA 独立密钥文件
-          python3 -c "import os; open('/tmp/sa.json', 'w').write(os.environ['SA_KEY'])"
+          echo "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
 
-      - name: 4. 执行全量迁移（满血优化版）
+      - name: 4. 终极引擎启动 (动态切片 + TPS 防封锁 + 内存复用)
         run: |
-          # 核心参数说明：
-          # --drive-acknowledge-abuse: 强行抢救 Google 封锁的 40GB“违规”文件
-          # --fast-list: 针对 14.5 万个文件极速建档，防止扫描卡死
-          # --tpslimit 10: 降低请求频率，防止 Google API 频繁报 403 错误
-          # --buffer-size 64M: 增大内存缓冲，减少断流
-          
-          rclone copy gdrive: 123pan:abc \
-            --drive-shared-with-me \
-            --drive-service-account-file=/tmp/sa.json \
-            --drive-acknowledge-abuse \
-            --fast-list \
-            --tpslimit 10 \
-            --buffer-size 64M \
-            --transfers=4 \
-            --checkers=16 \
-            --ignore-errors \
-            --low-level-retries 10 \
-            -v --stats=15s
+          # 开始对 j 文件夹执行降维打击
+          rclone copy "pikpak:/j" "123pan:/视频/j" -v \
+            --transfers 32 \
+            --checkers 64 \
+            --buffer-size 256M \
+            --use-mmap \
+            --vfs-read-chunk-size 32M \
+            --vfs-read-chunk-size-limit 2G \
+            --tpslimit 12 \
+            --tpslimit-burst 12 \
+            --low-level-retries 15 \
+            --retries 10 \
+            --timeout 10m \
+            --contimeout 10m \
+            --stats 15s \
+            --stats-one-line
+
