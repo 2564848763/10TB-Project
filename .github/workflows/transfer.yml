@@ -1,4 +1,4 @@
-name: J文件夹 物理极限对拷 (配置动态生成版)
+name: J文件夹 物理极限对拷 (终极精准版)
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: 1. 物理机底层网络魔改 (注入 BBR)
+      - name: 1. 物理机底层网络魔改
         run: |
           sudo sysctl -w net.core.default_qdisc=fq
           sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
@@ -18,28 +18,31 @@ jobs:
           sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 67108864"
           sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 67108864"
           sudo sysctl -w net.ipv4.tcp_mtu_probing=1
-          sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=0
           ulimit -n 65535
 
       - name: 2. 部署 Rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 3. 全自动动态构建挂载点 (调用你的独立 Secrets)
+      - name: 3. 动态构建挂载点 (已修复 123云盘 .cn 域名)
         env:
           PIKPAK_USER: ${{ secrets.PIKPAK_USER }}
           PIKPAK_PASS: ${{ secrets.PIKPAK_PASS }}
           PAN123_USER: ${{ secrets.PAN123_USER }}
           PAN123_PASS: ${{ secrets.PAN123_PASS }}
         run: |
-          echo "=== 🛠️ 正在为你动态生成并加密 Rclone 配置 ==="
-          # 使用 rclone config create 官方命令，自动完成密码 obscure 加密
+          echo "=== 🛠️ 注入 PikPak 配置 ==="
           rclone config create pikpak pikpak user "$PIKPAK_USER" pass "$PIKPAK_PASS"
-          rclone config create 123pan webdav url "https://www.123pan.com/webdav" vendor other user "$PAN123_USER" pass "$PAN123_PASS"
           
-          echo "=== 🔍 当前生效的网盘节点如下 ==="
-          rclone listremotes
+          echo "=== 🛠️ 注入 123云盘 WebDAV 配置 (使用正确的 .cn 接口) ==="
+          rclone config create 123pan webdav url "https://www.123pan.cn/webdav" vendor other user "$PAN123_USER" pass "$PAN123_PASS"
 
-      - name: 4. 极限引擎启动 (跳过哈希 + 忽略已存 + 多线程切块)
+      - name: 4. 预检测防阻断 (强制创建父目录)
+        run: |
+          echo "=== 📁 正在 123云盘 创建并确认目录结构 ==="
+          # 提前建好目标目录，彻底避免 WebDAV 报 405/409 找不到父目录的错
+          rclone mkdir "123pan:/视频/j" || true
+
+      - name: 5. 极限引擎启动 (跳过哈希 + 忽略已存 + 多线程切块)
         run: |
           rclone copy "pikpak:/j" "123pan:/视频/j" -v \
             --transfers 24 \
