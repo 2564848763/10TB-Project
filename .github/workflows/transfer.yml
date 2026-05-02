@@ -1,4 +1,4 @@
-name: m & l 文件夹 终极极限对扣版
+name: 电话文件夹 终极极限对拷版
 
 on:
   workflow_dispatch:
@@ -35,30 +35,26 @@ jobs:
 
       - name: 4. 预建目录阵地
         run: |
-          # 同时为 m 和 l 创建目标坑位
-          rclone mkdir "123pan:/视频/m" || true
-          rclone mkdir "123pan:/视频/l" || true
+          echo "=== 📁 正在 123云盘 开辟专属阵地 ==="
+          rclone mkdir "123pan:/视频/电话" || true
 
-      - name: 5. 满血引擎启动 (m & l 文件夹顺序压榨)
+      - name: 5. 满血引擎启动 (电话文件夹定点爆破)
         run: |
-          # 定义需要搬运的列表
-          for folder in m l; do
-            echo "=== 🚀 正在全力攻克文件夹: $folder ==="
-            rclone copy "pikpak:/$folder" "123pan:/视频/$folder" -v \
-              --transfers 24 \
-              --checkers 64 \
-              --fast-list \
-              --buffer-size 128M \
-              --multi-thread-streams 4 \
-              --use-mmap \
-              --size-only \
-              --ignore-existing \
-              --tpslimit 12 \
-              --tpslimit-burst 12 \
-              --low-level-retries 25 \
-              --retries 20 \
-              --timeout 15m \
-              --contimeout 15m \
-              --stats 15s \
-              --stats-one-line
-          done
+          echo "=== 🚀 正在全力攻克文件夹: 电话 ==="
+          rclone copy "pikpak:/电话" "123pan:/视频/电话" -v \
+            --transfers 24 \
+            --checkers 64 \
+            --fast-list \
+            --buffer-size 128M \
+            --multi-thread-streams 4 \
+            --use-mmap \
+            --size-only \
+            --ignore-existing \
+            --tpslimit 12 \
+            --tpslimit-burst 12 \
+            --low-level-retries 25 \
+            --retries 20 \
+            --timeout 15m \
+            --contimeout 15m \
+            --stats 15s \
+            --stats-one-line
