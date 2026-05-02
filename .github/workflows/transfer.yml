@@ -1,4 +1,4 @@
-name: l 文件夹 终极极限对拷版
+name: o 文件夹 终极极限对拷版
 
 on:
   workflow_dispatch:
@@ -36,12 +36,12 @@ jobs:
       - name: 4. 预建目录阵地
         run: |
           echo "=== 📁 正在 123云盘 开辟专属阵地 ==="
-          rclone mkdir "123pan:/视频/l" || true
+          rclone mkdir "123pan:/视频/o" || true
 
-      - name: 5. 满血引擎启动 (l 文件夹定点爆破)
+      - name: 5. 满血引擎启动 (o 文件夹定点爆破)
         run: |
-          echo "=== 🚀 正在全力攻克文件夹: l ==="
-          rclone copy "pikpak:/l" "123pan:/视频/l" -v \
+          echo "=== 🚀 正在全力攻克文件夹: o ==="
+          rclone copy "pikpak:/o" "123pan:/视频/o" -v \
             --transfers 24 \
             --checkers 64 \
             --fast-list \
